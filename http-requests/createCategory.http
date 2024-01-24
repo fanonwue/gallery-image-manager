@@ -1,0 +1,10 @@
+PUT http://localhost:3000/v1/categories
+Content-Type: application/json
+
+{
+  "name": "test2",
+  "description": "test2",
+  "show": false
+}
+
+###
