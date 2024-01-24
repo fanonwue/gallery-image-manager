@@ -16,6 +16,7 @@ type (
 		Height  int
 		Width   int
 		Suffix  string
+		Enlarge bool
 		Format  bimg.ImageType
 	}
 
@@ -197,6 +198,7 @@ func processImageRule(imageOptions ImageOptions) (*ImageVariant, error) {
 	options := bimg.Options{
 		Type:    procRule.Format,
 		Quality: procRule.Quality,
+		Enlarge: procRule.Enlarge,
 	}
 
 	if procRule.Width > 0 && procRule.Height > 0 {
