@@ -1,0 +1,51 @@
+{{template "header.gohtml"}}
+<form method="GET" class="submit-on-change" id="authors-filter">
+
+    <div class="mb-3">
+        <label class="form-label" for="filter-sort-by">Sort by</label>
+        <select class="form-select" id="filter-sort-by" name="sortBy">
+            <option value="id" {{if eq .filter.SortBy "id"}} selected {{end}}>ID</option>
+            <option value="name" {{if eq .filter.SortBy "name"}} selected {{end}}>Name</option>
+            <option value="imageCount" {{if eq .filter.SortBy "imageCount"}} selected {{end}}>Image Count</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" id="filter-sort-asc" name="sortMode" value="asc" type="radio" {{if eq .filter.SortMode "asc"}} checked {{end}}>
+            <label class="form-check-label" for="filter-sort-asc">Ascending</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" id="filter-sort-desc" name="sortMode" value="desc" type="radio" {{if eq .filter.SortMode "desc"}} checked {{end}}>
+            <label class="form-check-label" for="filter-sort-desc">Descending</label>
+        </div>
+    </div>
+
+    <div class="d-grid gap-2">
+        <button class="btn btn-primary" type="submit">Filter</button>
+    </div>
+</form>
+<hr>
+    <a class="btn btn-primary" href="/authors/new">New Author</a>
+<hr>
+<table class="table table-striped-columns">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>URL</th>
+        <th>Images</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{ range .authors }}
+        <tr>
+            <td class="d-grid gap-2"><a class="btn btn-primary" href="/authors/{{.ID}}">{{.ID}}</a></td>
+            <td>{{.Name}}</td>
+            <td>{{.Url}}</td>
+            <td class="d-grid gap-2"><a class="btn btn-secondary" href="/images?author={{.ID}}">{{.ImageCount}}</a></td>
+        </tr>
+    {{ end }}
+    </tbody>
+</table>
+{{template "footer.gohtml"}}

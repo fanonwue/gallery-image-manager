@@ -180,12 +180,12 @@ func importGalleryLibrary(libraryPath string) error {
 	}
 
 	// Clear original folder
-	err = os.RemoveAll(path.Join(originalImageDir))
+	err = os.RemoveAll(path.Join(appConfig.OriginalDir))
 	if err != nil {
 		return err
 	}
 
-	err = createDirIfNotExists(originalImageDir)
+	err = createDirIfNotExists(appConfig.OriginalDir)
 	if err != nil {
 		return err
 	}
@@ -227,7 +227,7 @@ func copyImageFile(imageId uint, libraryPath string) {
 	defer source.Close()
 
 	destinationFileName := fmt.Sprintf("%d.%s", image.ID, format)
-	destination, err := os.Create(path.Join(originalImageDir, destinationFileName))
+	destination, err := os.Create(path.Join(appConfig.OriginalDir, destinationFileName))
 	if err != nil {
 		logger.Errorf("Could not create destination file: %v", err)
 		return

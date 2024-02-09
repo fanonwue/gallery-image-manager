@@ -1,9 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"net/http"
+	"slices"
+	"strings"
 )
 
 type Author struct {
@@ -14,9 +18,10 @@ type Author struct {
 }
 
 type AuthorDto struct {
-	ID   uint   `binding:"-" json:"id" yaml:"id"`
-	Name string `json:"name" yaml:"name"`
-	Url  string `json:"url" yaml:"url"`
+	ID         uint   `binding:"-" json:"id" yaml:"id"`
+	Name       string `json:"name" yaml:"name"`
+	Url        string `json:"url" yaml:"url"`
+	ImageCount uint   `json:"-" yaml:"-"`
 }
 
 func (a *Author) toDto() AuthorDto {
@@ -25,6 +30,13 @@ func (a *Author) toDto() AuthorDto {
 		Name: a.Name,
 		Url:  a.Url,
 	}
+}
+
+func (a *Author) toDtoWithImageCount() AuthorDto {
+	imageCount := db.Model(&a).Association("Images").Count()
+	dto := a.toDto()
+	dto.ImageCount = uint(imageCount)
+	return dto
 }
 
 func (a *Author) updateWithDto(dto AuthorDto) {
@@ -48,6 +60,131 @@ const (
 )
 
 // ------------- WEBSERVER HANDLER -------------
+
+func getAuthorsHtml(c *gin.Context) {
+	var authors []Author
+	filter := ListFilter{}
+
+	tx := db.Session(&gorm.Session{})
+
+	sortMode := strings.ToLower(c.Query("sortMode"))
+	if sortMode != "desc" {
+		sortMode = "asc"
+	}
+
+	filter.SortMode = sortMode
+
+	sortBy := c.Query("sortBy")
+	if len(sortBy) == 0 {
+		sortBy = "id"
+	}
+	filter.SortBy = sortBy
+	switch sortBy {
+	case "id":
+		tx = tx.Order("id " + sortMode)
+	case "name":
+		tx = tx.Order("name " + sortMode)
+	}
+
+	tx.Find(&authors)
+
+	authorsDto := Map(authors, func(a Author) AuthorDto {
+		return a.toDtoWithImageCount()
+	})
+
+	if filter.SortBy == "imageCount" {
+		slices.SortFunc(authorsDto, func(a, b AuthorDto) int {
+			ret := int(a.ImageCount) - int(b.ImageCount)
+			if ret == 0 {
+				ret = int(a.ID) - int(b.ID)
+			}
+
+			if sortModeMap[sortMode] == SORT_DESC {
+				ret *= -1
+			}
+
+			return ret
+		})
+	}
+
+	c.HTML(200, "authors.gohtml", gin.H{
+		"authors": authorsDto,
+		"filter":  filter,
+	})
+}
+
+func loadAuthor(c *gin.Context) (*Author, error) {
+	id, err := pathIdToInt(authorIdName, c)
+	if err != nil {
+		idValue := c.Param(authorIdName)
+		if idValue == entityNew {
+			return &Author{}, nil
+		}
+		c.String(400, err.Error())
+		return nil, err
+	}
+
+	var author Author
+	result := db.Preload(clause.Associations).First(&author, id)
+
+	if result.RowsAffected == 0 {
+		c.Error(result.Error)
+		c.String(404, "Author with id '%d' not found", id)
+		return nil, result.Error
+	}
+
+	return &author, nil
+}
+
+func getAuthorHtml(c *gin.Context) {
+	author, err := loadAuthor(c)
+
+	if err == nil {
+		c.HTML(200, "author.gohtml", gin.H{
+			"author": author.toDtoWithImageCount(),
+		})
+	}
+}
+
+func updateAuthorForm(c *gin.Context) {
+	author, err := loadAuthor(c)
+	if err != nil {
+		return
+	}
+
+	switch c.PostForm("action") {
+	case "save":
+		isNewAuthor := author.ID == 0
+
+		dto := AuthorDto{
+			Name: c.PostForm("name"),
+			Url:  c.PostForm("url"),
+		}
+
+		author.updateWithDto(dto)
+
+		db.Save(&author)
+
+		if isNewAuthor {
+			c.Redirect(302, fmt.Sprintf("/authors/%d", author.ID))
+		} else {
+			getAuthorHtml(c)
+		}
+	case "delete":
+		db.Unscoped().Delete(&author)
+		c.Redirect(302, "/authors")
+	}
+}
+
+func getAllAuthors() []AuthorDto {
+	var authors []Author
+	db.Order("Name ASC").Find(&authors)
+
+	authorsDto := Map(authors, func(a Author) AuthorDto {
+		return a.toDto()
+	})
+	return authorsDto
+}
 
 func getAuthors(c *gin.Context) {
 	var authors []Author

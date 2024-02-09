@@ -1,0 +1,107 @@
+{{template "header.gohtml"}}
+<form method="POST">
+    <input type="hidden" name="action" value="save">
+    <div class="mb-3">
+        <label class="form-label bold" for="image-id">Image ID</label>
+        <input class="form-control" id="image-id" readonly value="{{.image.ID}}">
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label bold" for="image-name">Name</label>
+        <input class="form-control" id="image-name" name="name" value="{{.image.Name}}" required>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label bold" for="image-title">Title</label>
+        <input class="form-control" id="image-title" name="title" value="{{.image.Title}}" required>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label bold" for="image-description">Description</label>
+        <textarea class="form-control" rows="4" id="image-description" name="description" required>{{.image.Description}}</textarea>
+    </div>
+
+    <div class="mb-3">
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" id="image-sfw" name="nsfw" value="0" type="radio" {{if not .image.Nsfw}} checked {{end}}>
+            <label class="form-check-label" for="image-sfw">SFW</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" id="image-nsfw" name="nsfw" value="1" type="radio" {{if .image.Nsfw}} checked {{end}}>
+            <label class="form-check-label" for="image-nsfw">NSFW</label>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label for="image-author" class="form-label bold">Author</label>
+        <select class="form-select" id="image-author" name="author" required>
+            {{ range .authors}}
+                <option value="{{.ID}}" {{if eq .ID $.image.AuthorID}} selected {{end}}>{{.Name}}</option>
+            {{end}}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="image-categories">Categories</label>
+        <select class="form-select" id="image-categories" name="categories" multiple size="10">
+            {{ range .categories}}
+                <option value="{{.ID}}" {{if categorySelected . $.image.Categories}} selected {{end}}>{{.DisplayName}}</option>
+            {{end}}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label bold" for="image-related">Related Images</label>
+        <input class="form-control" id="image-related" name="related" value="{{joinUints .image.RelatedIds ", "}}">
+    </div>
+
+    <div id="related-images" class=" mb-3">
+        <span class="mb-3">Current related images:</span>
+        {{range $key, $value := .image.Related}}
+            <div class="mb-2">
+                <a href="/images/{{$key}}">{{$key}} - {{$value}}</a>
+            </div>
+        {{end}}
+    </div>
+
+    <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+</form>
+<hr>
+    <form method="POST" action="/images/{{.image.ID}}/upload" enctype="multipart/form-data">
+        <div class="mb-3">
+            <label class="form-label" for="upload-file">Upload new source image</label>
+            <input class="form-control" type="file" id="upload-file" name="file"
+                   accept="image/jpeg, image/png, image/webp" required>
+        </div>
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="upload-process" name="process">
+            <label class="form-check-label" for="upload-process">Process after upload</label>
+        </div>
+        <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary">Upload</button>
+        </div>
+    </form>
+<hr>
+{{if .image.ImageExists}}
+    <div class="image-preview">
+        <img class="img-fluid" src="/files/originals/{{.image.ID}}.{{.image.Format}}" alt="default">
+    </div>
+{{else}}
+    <p>No image has been uploaded yet.</p>
+{{end}}
+{{if gt .image.ID 0}}
+    <hr>
+    <form method="POST">
+        <input type="hidden" name="action" value="delete">
+        <div class="d-grid gap-2">
+            <button class="btn btn-danger confirm-delete" type="submit">Delete</button>
+        </div>
+    </form>
+{{end}}
+
+<script>
+
+</script>
+{{template "footer.gohtml"}}

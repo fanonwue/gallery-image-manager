@@ -1,0 +1,57 @@
+{{template "header.gohtml"}}
+<form method="POST">
+    <input type="hidden" name="action" value="save">
+    <div class="mb-3">
+        <label class="form-label bold" for="category-id">Category ID</label>
+        <input class="form-control" id="category-id" readonly value="{{.category.ID}}">
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label bold" for="category-name">Name</label>
+        <input class="form-control" id="category-name" name="name" value="{{.category.Name}}" required>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label bold" for="category-display-name">Display Name</label>
+        <input class="form-control" id="category-display-name" name="displayName" value="{{.category.DisplayName}}" required>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label bold" for="category-description">Description</label>
+        <textarea class="form-control" id="category-description" name="description" required>{{.category.Description}}</textarea>
+    </div>
+
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" id="category-nsfw" name="nsfw" {{if derefBool .category.Nsfw}} checked {{end}}>
+        <label class="form-check-label" for="category-nsfw">NSFW</label>
+    </div>
+
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" id="category-show" name="show" {{if derefBool .category.Show}} checked {{end}}>
+        <label class="form-check-label" for="category-show">Show</label>
+    </div>
+
+    <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+</form>
+<hr>
+<div class="d-grid gap-2">
+    <a class="btn btn-secondary" href="/images?category={{.category.ID}}">{{.category.ImageCount}} Images</a>
+</div>
+{{if gt .category.ID 0}}
+    <hr>
+    {{if eq .category.ImageCount 0}}
+        <form method="POST">
+            <input type="hidden" name="action" value="delete">
+            <div class="d-grid gap-2">
+                <button class="btn btn-danger confirm-delete" type="submit">Delete</button>
+            </div>
+        </form>
+    {{else}}
+        <p>
+            Only Categories without any images attached to them can be deleted!
+        </p>
+    {{end}}
+{{end}}
+{{template "footer.gohtml"}}

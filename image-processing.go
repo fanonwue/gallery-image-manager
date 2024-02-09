@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path"
+	"path/filepath"
 	"sync"
 )
 
@@ -28,9 +29,16 @@ type (
 	}
 
 	ImageProcessResult struct {
-		ImageID  uint           `json:"imageId" yaml:"imageId"`
-		Original *ImageVariant  `json:"original" yaml:"original"`
-		Variants []ImageVariant `json:"variants" yaml:"variants"`
+		ImageID     uint           `json:"imageId" yaml:"imageId"`
+		Name        string         `json:"name" yaml:"name"`
+		Title       string         `json:"title" yaml:"title"`
+		Description string         `json:"description" yaml:"description"`
+		Related     []uint         `json:"related" yaml:"related"`
+		Categories  []uint         `json:"categories" yaml:"categories"`
+		Author      uint           `json:"author" yaml:"author"`
+		Nsfw        bool           `json:"nsfw" yaml:"nsfw"`
+		Original    *ImageVariant  `json:"original" yaml:"original"`
+		Variants    []ImageVariant `json:"variants" yaml:"variants"`
 	}
 
 	ImageVariant struct {
@@ -115,6 +123,12 @@ func processImageAsync(image *Image, targetChannel chan<- *ImageProcessResult, w
 }
 
 func processImage(image *Image) (*ImageProcessResult, error) {
+	// Delete old processed images
+	oldFiles, err := filepath.Glob(fmt.Sprintf("%s/%s*", appConfig.ProcessedDir, image.ImageIdentifier()))
+	for _, file := range oldFiles {
+		_ = os.Remove(file)
+	}
+
 	imageFile, err := os.ReadFile(image.OriginalFilePath())
 	if err != nil {
 		logger.Errorf("Could not read image file: %v", err)
@@ -164,9 +178,16 @@ func processImage(image *Image) (*ImageProcessResult, error) {
 	})
 
 	result := ImageProcessResult{
-		ImageID:  image.ID,
-		Original: original,
-		Variants: variants,
+		ImageID:     image.ID,
+		Name:        image.Name,
+		Title:       image.Title,
+		Description: image.Description,
+		Related:     image.relatedImageIds(),
+		Categories:  image.categoryIds(),
+		Author:      image.AuthorID,
+		Nsfw:        image.Nsfw,
+		Original:    original,
+		Variants:    variants,
 	}
 
 	return &result, nil
@@ -238,7 +259,7 @@ func processImageRule(imageOptions ImageOptions) (*ImageVariant, error) {
 		result.FileName = processedImageFilename(imageOptions.Image.ImageIdentifier(), size, procRule.Format)
 	}
 
-	targetPath := path.Join(processedImageDir, result.FileName)
+	targetPath := path.Join(appConfig.ProcessedDir, result.FileName)
 
 	err = os.WriteFile(targetPath, processed, 0666)
 	if err != nil {
