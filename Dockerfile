@@ -28,4 +28,4 @@ COPY resources $WORKDIR/resources
 
 EXPOSE 3000
 
-ENTRYPOINT ./image-manager
+ENTRYPOINT ["./image-manager"]
