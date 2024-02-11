@@ -15,51 +15,90 @@ import (
 	"sync"
 )
 
-type Image struct {
-	gorm.Model
-	Name             string `gorm:"size:50"`
-	Title            string `gorm:"size:50"`
-	Description      string
-	Nsfw             bool
-	Format           string `gorm:"size:5"`
-	NoResize         bool
-	IgnoreAuthorName bool
-	ImageExists      bool
-	AuthorID         uint
-	Author           *Author
-	Categories       []*Category `gorm:"many2many:images_categories"`
-	Related          []*Image    `gorm:"many2many:images_relations;association_jointable_foreignkey:related_id"`
-}
+type (
+	Image struct {
+		gorm.Model
+		Name             string `gorm:"size:50"`
+		Title            string `gorm:"size:50"`
+		Description      string
+		Nsfw             bool
+		Format           string `gorm:"size:5"`
+		NoResize         bool
+		IgnoreAuthorName bool
+		ImageExists      bool
+		AuthorID         uint
+		Author           *Author
+		Categories       []*Category `gorm:"many2many:images_categories"`
+		Related          []*Image    `gorm:"many2many:images_relations;association_jointable_foreignkey:related_id"`
+		Variants         []ImageVariant
+	}
 
-type ImageDto struct {
-	ID               uint       `binding:"-" json:"id" yaml:"id"`
-	Name             string     `json:"name" yaml:"name"`
-	Title            string     `json:"title" yaml:"title"`
-	Description      string     `json:"description" yaml:"description"`
-	Nsfw             *bool      `json:"nsfw" yaml:"nsfw"`
-	Format           string     `json:"format" yaml:"format"`
-	NoResize         *bool      `json:"noResize" yaml:"noResize"`
-	IgnoreAuthorName *bool      `json:"ignoreAuthorName" yaml:"ignoreAuthorName"`
-	AuthorID         uint       `json:"authorId" yaml:"authorId"`
-	Author           *AuthorDto `json:"author" yaml:"author"`
-	Categories       []uint     `json:"categories" yaml:"categories"`
-}
+	ImageVariant struct {
+		gorm.Model
+		Height   int
+		Width    int
+		Format   string `gorm:"size:5"`
+		Suffix   string
+		FileName string
+		Quality  int
+		Original bool
+		Name     string
+		ImageID  uint
+		Image    *Image `gorm:"index:idx_image_variants_image_id"`
+	}
 
-type ImageView struct {
-	ID            uint
-	Name          string
-	Title         string
-	AuthorName    string
-	AuthorID      uint
-	Nsfw          bool
-	ImageExists   bool
-	Format        string
-	Description   string
-	Categories    []uint
-	CategoryNames []string
-	RelatedIds    []uint
-	Related       map[uint]string
-}
+	Icon struct {
+		Height      int    `json:"height" yaml:"height"`
+		Width       int    `json:"width" yaml:"width"`
+		DefaultIcon bool   `json:"defaultIcon" yaml:"defaultIcon"`
+		Format      string `json:"format" yaml:"format"`
+		FileName    string `json:"fileName" yaml:"fileName"`
+		Type        string `json:"type" yaml:"type"`
+	}
+
+	ImageDto struct {
+		ID               uint              `binding:"-" json:"id" yaml:"id"`
+		Name             string            `json:"name" yaml:"name"`
+		Title            string            `json:"title" yaml:"title"`
+		Description      string            `json:"description" yaml:"description"`
+		Nsfw             *bool             `json:"nsfw" yaml:"nsfw"`
+		Format           string            `json:"format" yaml:"format"`
+		NoResize         *bool             `json:"noResize" yaml:"noResize"`
+		IgnoreAuthorName *bool             `json:"ignoreAuthorName" yaml:"ignoreAuthorName"`
+		AuthorID         uint              `json:"authorId" yaml:"authorId"`
+		Author           *AuthorDto        `json:"author" yaml:"author"`
+		Variants         []ImageVariantDto `json:"variants,omitempty" yaml:"variants,omitempty"`
+		Categories       []uint            `json:"categories,omitempty" yaml:"categories",omitempty`
+	}
+
+	ImageView struct {
+		ID            uint
+		Name          string
+		Title         string
+		AuthorName    string
+		AuthorID      uint
+		Nsfw          bool
+		ImageExists   bool
+		Format        string
+		Description   string
+		Categories    []uint
+		CategoryNames []string
+		RelatedIds    []uint
+		Related       map[uint]string
+	}
+
+	ImageVariantDto struct {
+		Height   int    `json:"height" yaml:"height"`
+		Width    int    `json:"width" yaml:"width"`
+		Format   string `json:"format" yaml:"format"`
+		FileName string `json:"fileName" yaml:"fileName"`
+		Quality  int    `json:"quality" yaml:"quality"`
+		Name     string `json:"name,omitempty" yaml:"name,omitempty"`
+		Suffix   string `json:"suffix,omitempty" yaml:"suffix,omitempty"`
+		Original bool   `json:"original" yaml:"original"`
+		ImageID  uint   `json:"imageId" yaml:"imageId"`
+	}
+)
 
 func (i *Image) toDto() ImageDto {
 	dto := ImageDto{
@@ -71,6 +110,7 @@ func (i *Image) toDto() ImageDto {
 		Description:      i.Description,
 		IgnoreAuthorName: &i.IgnoreAuthorName,
 		Nsfw:             &i.Nsfw,
+		AuthorID:         i.AuthorID,
 	}
 
 	if i.Categories != nil {
@@ -84,6 +124,16 @@ func (i *Image) toDto() ImageDto {
 		dto.Author = &authorDto
 	}
 
+	return dto
+}
+
+func (i *Image) toDtoWithVariants() ImageDto {
+	dto := i.toDto()
+	if i.Variants != nil {
+		dto.Variants = Map(i.Variants, func(iv ImageVariant) ImageVariantDto {
+			return iv.toDto()
+		})
+	}
 	return dto
 }
 
@@ -182,8 +232,12 @@ func (i *ImageDto) toModel() Image {
 	return image
 }
 
+func (i *Image) OriginalFileName() string {
+	return fmt.Sprintf("%s.%s", strconv.Itoa(int(i.ID)), i.Format)
+}
+
 func (i *Image) OriginalFilePath() string {
-	return fmt.Sprintf("%s.%s", appConfig.OriginalDir+strconv.Itoa(int(i.ID)), i.Format)
+	return path.Join(appConfig.OriginalDir, i.OriginalFileName())
 }
 
 func (i *Image) ImageIdentifier() string {
@@ -218,6 +272,20 @@ func (i *Image) categoryIds() []uint {
 	return ids
 }
 
+func (iv *ImageVariant) toDto() ImageVariantDto {
+	return ImageVariantDto{
+		Height:   iv.Height,
+		Width:    iv.Width,
+		Format:   iv.Format,
+		FileName: iv.FileName,
+		Quality:  iv.Quality,
+		Name:     iv.Name,
+		ImageID:  iv.ImageID,
+		Suffix:   iv.Suffix,
+		Original: iv.Original,
+	}
+}
+
 const (
 	imageIdName = "imageId"
 )
@@ -229,6 +297,11 @@ func fetchImages(c *gin.Context) ([]*Image, *ListFilter, error) {
 	var filter ListFilter
 
 	tx := db.Preload("Author").Preload("Categories")
+
+	_, withVariants := c.GetQuery("withVariants")
+	if withVariants {
+		tx = tx.Preload("Variants")
+	}
 
 	rawCategory := c.Query("category")
 	if len(rawCategory) == 0 {
@@ -427,6 +500,7 @@ func updateImageForm(c *gin.Context) {
 		if res.Error != nil {
 			c.Error(res.Error)
 			c.String(500, "Error updating image: %v", res.Error)
+			tx.Rollback()
 			return
 		}
 		if newCategories != nil {
@@ -434,6 +508,7 @@ func updateImageForm(c *gin.Context) {
 			if err != nil {
 				c.Error(err)
 				c.String(500, "Error updating category associations: %v", err)
+				tx.Rollback()
 				return
 			}
 		}
@@ -444,6 +519,7 @@ func updateImageForm(c *gin.Context) {
 				if err != nil {
 					c.Error(err)
 					c.String(500, "Error deleting old related images associations: %v", err)
+					tx.Rollback()
 					return
 				}
 			}
@@ -452,6 +528,7 @@ func updateImageForm(c *gin.Context) {
 			if err != nil {
 				c.Error(err)
 				c.String(500, "Error updating related images associations: %v", err)
+				tx.Rollback()
 				return
 			}
 
@@ -463,6 +540,7 @@ func updateImageForm(c *gin.Context) {
 			if err != nil {
 				c.Error(err)
 				c.String(500, "Error update related images relation: %v", err)
+				tx.Rollback()
 				return
 			}
 		}
@@ -517,20 +595,50 @@ func uploadImageForm(c *gin.Context) {
 	image.Format = extension[1:]
 	image.ImageExists = true
 
-	db.Save(&image)
+	tx := db.Session(&gorm.Session{})
+	tx.Save(&image)
 
 	_, processAfterUpload := c.GetPostForm("process")
 	if processAfterUpload {
-		_, err = processImage(image)
+		result, err := processImage(&ImageProcessConfig{
+			Image:           image,
+			ProcessOriginal: true,
+		})
 		if err != nil {
 			c.Error(err)
 			c.String(500, "Error processing file after upload: %v", err)
 			return
 		}
+
+		_ = saveProcessResult(result, tx)
 	}
+
+	tx.Commit()
 
 	c.Redirect(302, fmt.Sprintf("/images/%d", image.ID))
 
+}
+
+func getIcons(c *gin.Context) {
+	var favicons []Icon
+
+	res := db.Find(&favicons)
+
+	if res.Error != nil {
+		c.Error(res.Error)
+		c.String(500, "Error searching for favicons")
+		return
+	}
+
+	favicons = append(favicons, Icon{
+		Height:   0,
+		Width:    0,
+		Format:   "ico",
+		FileName: "favicon.ico",
+		Type:     "favicon",
+	})
+
+	c.JSON(200, &favicons)
 }
 
 func getImages(c *gin.Context) {
@@ -539,9 +647,18 @@ func getImages(c *gin.Context) {
 		return
 	}
 
-	imagesDto := Map(images, func(image *Image) ImageDto {
-		return image.toDto()
-	})
+	var imagesDto []ImageDto
+
+	_, withVariants := c.GetQuery("withVariants")
+	if withVariants {
+		imagesDto = Map(images, func(image *Image) ImageDto {
+			return image.toDtoWithVariants()
+		})
+	} else {
+		imagesDto = Map(images, func(image *Image) ImageDto {
+			return image.toDto()
+		})
+	}
 
 	c.JSON(200, &imagesDto)
 }
@@ -631,6 +748,56 @@ func deleteImage(c *gin.Context) {
 	c.Status(200)
 }
 
+func processFaviconApi(c *gin.Context) {
+	var faviconCategory Category
+
+	db.Preload("Images").First(&faviconCategory, &Category{Name: faviconCategoryName})
+
+	images := faviconCategory.Images
+	if len(images) == 0 {
+		c.String(500, "No image in \"%s\" category", faviconCategoryName)
+		return
+	}
+
+	image := images[0]
+
+	faviconResult, err := processFavicon(image)
+	if err != nil {
+		c.Error(err)
+		c.String(500, c.Error(err).Error())
+	}
+
+	tx := db.Session(&gorm.Session{AllowGlobalUpdate: true})
+	tx.Unscoped().Delete(Icon{})
+
+	icons := make([]Icon, 0)
+	for _, iconResult := range faviconResult {
+		for _, variant := range iconResult.Variants {
+			icons = append(icons, Icon{
+				Height:      variant.Height,
+				Width:       variant.Width,
+				Format:      variant.Format,
+				FileName:    variant.FileName,
+				Type:        iconResult.Name,
+				DefaultIcon: variant.Height == defaultFaviconSize || variant.Width == defaultFaviconSize,
+			})
+		}
+	}
+
+	tx.Create(&icons)
+	tx.Commit()
+	jsonBytes, err := json.Marshal(&faviconResult)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+	}
+	err = os.WriteFile(path.Join(appConfig.ProcessedDir, "icons.json"), jsonBytes, 0666)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+	}
+
+	c.JSON(200, &faviconResult)
+}
+
 func processImages(c *gin.Context) {
 	var images []Image
 
@@ -657,7 +824,10 @@ func processImages(c *gin.Context) {
 		// Go will override variables in the for loop before the goroutine starts
 		// Grab the value directly from the array instead
 		image := images[i]
-		go processImageAsync(&image, resultChannel, &wg)
+		go processImageAsync(&ImageProcessConfig{
+			Image:           &image,
+			ProcessOriginal: true,
+		}, resultChannel, &wg)
 	}
 
 	go func() {
@@ -665,9 +835,16 @@ func processImages(c *gin.Context) {
 		close(resultChannel)
 	}()
 
+	tx := db.Session(&gorm.Session{AllowGlobalUpdate: true})
+	tx.Unscoped().Delete(&ImageVariant{})
+	tx.Exec("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'image_variants'")
+
 	for result := range resultChannel {
+		_ = saveProcessResult(result, tx)
 		results = append(results, result)
 	}
+
+	tx.Commit()
 
 	jsonBytes, err := json.Marshal(&results)
 	if err != nil {
@@ -679,4 +856,36 @@ func processImages(c *gin.Context) {
 	}
 
 	c.JSON(200, &results)
+}
+
+func saveProcessResult(result *ImageProcessResult, tx *gorm.DB) []ImageVariant {
+	toImageVariant := func(pv ProcessedImageVariant, imageId uint, original bool) ImageVariant {
+		return ImageVariant{
+			Height:   pv.Height,
+			Width:    pv.Width,
+			Format:   pv.Format,
+			FileName: pv.FileName,
+			Quality:  pv.Quality,
+			Name:     pv.Name,
+			Suffix:   pv.Suffix,
+			Original: original,
+			ImageID:  imageId,
+		}
+	}
+
+	imageId := result.ImageID
+
+	variants := make([]ImageVariant, 0, len(result.Variants)+1)
+	for _, v := range result.Variants {
+		variants = append(variants, toImageVariant(v, imageId, false))
+	}
+
+	if result.Original != nil {
+		variants = append(variants, toImageVariant(*result.Original, imageId, true))
+	}
+
+	tx.Unscoped().Delete(&ImageVariant{}, "image_id = ?", imageId)
+	tx.Create(variants)
+
+	return variants
 }

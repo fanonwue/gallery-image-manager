@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -11,13 +12,17 @@ import (
 	"gorm.io/gorm"
 	"html/template"
 	"os"
+	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type (
 	AppConfig struct {
+		DataDir      string
 		ProcessedDir string
+		FaviconDir   string
 		OriginalDir  string
 		ImportDir    string
 		DbLocation   string
@@ -120,11 +125,15 @@ func setupLogging() {
 
 func createConfig() *AppConfig {
 	config := AppConfig{
-		ProcessedDir: "/mnt/m/Web/senex-gallery-content/managed/",
-		OriginalDir:  "data/images/originals/",
-		DbLocation:   "/mnt/d/Sqlite/image-manager.db",
-		ImportDir:    "/mnt/m/Web/senex-gallery-content",
+		DataDir: "data/",
+		//ProcessedDir: "/mnt/m/Web/senex-gallery-content/managed/",
+		DbLocation: "/mnt/d/Sqlite/image-manager.db",
+		ImportDir:  "/mnt/m/Web/senex-gallery-content",
 	}
+
+	config.ProcessedDir = path.Join(config.DataDir, "images/processed")
+	config.OriginalDir = path.Join(config.DataDir, "images/originals")
+	config.FaviconDir = path.Join(config.DataDir, "icons")
 
 	appConfig = &config
 	return appConfig
@@ -161,6 +170,10 @@ func createDirIfNotExists(dir string) error {
 func setup() {
 	setupLogging()
 	createConfig()
+	createDirIfNotExists(appConfig.DataDir)
+	createDirIfNotExists(appConfig.OriginalDir)
+	createDirIfNotExists(appConfig.ProcessedDir)
+	createDirIfNotExists(appConfig.FaviconDir)
 }
 
 func main() {
@@ -175,16 +188,18 @@ func main() {
 
 	db = tmpDb
 
-	err = db.AutoMigrate(&Image{}, &Category{}, &Author{})
+	err = db.AutoMigrate(&Image{}, &Category{}, &Author{}, &ImageVariant{}, &Icon{})
 	if err != nil {
 		logger.Panicf("Error migrating models: %v", err)
 	}
 
-	//importGalleryLibrary("/mnt/d/senex-gallery-content/")
+	createReservedCategories()
 
 	readAccounts()
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(ginzap.Ginzap(logger.Desugar(), time.RFC3339, false))
+	r.Use(ginzap.RecoveryWithZap(logger.Desugar(), true))
 	r.SetTrustedProxies(nil)
 	r.SetFuncMap(template.FuncMap{
 		"joinStrings": strings.Join,
@@ -223,6 +238,7 @@ func main() {
 
 	authorized.GET("/images", getImagesHtml)
 	authorized.POST("/images/process", processImages)
+	authorized.POST("/images/process-icons", processFaviconApi)
 	authorized.GET(fmt.Sprintf("/images/:%s", imageIdName), getImageHtml)
 	authorized.POST(fmt.Sprintf("/images/:%s", imageIdName), updateImageForm)
 	authorized.POST(fmt.Sprintf("/images/:%s/upload", imageIdName), uploadImageForm)
@@ -235,8 +251,9 @@ func main() {
 	authorized.GET(fmt.Sprintf("/categories/:%s", categoryIdName), getCategoryHtml)
 	authorized.POST(fmt.Sprintf("/categories/:%s", categoryIdName), updateCategoryForm)
 
-	r.Static("/files/originals", "./data/images/originals")
-	r.Static("/files/processed", "./data/images/processed")
+	r.Static("/files/originals", appConfig.OriginalDir)
+	r.Static("/files/processed", appConfig.ProcessedDir)
+	r.Static("/files/icons", appConfig.FaviconDir)
 
 	r.POST(apiPath("/auth/login"))
 
@@ -250,6 +267,7 @@ func main() {
 	r.GET(apiPath("/images"), getImages)
 	authorized.PUT(apiPath("/images"), addImage)
 	r.GET(apiPath("/images/:%s", imageIdName), getImage)
+	r.GET(apiPath("/icons"), getIcons)
 	authorized.PATCH(apiPath("/images/:%s", imageIdName), updateImage)
 	authorized.DELETE(apiPath("/images/:%s", imageIdName), deleteImage)
 

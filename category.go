@@ -78,8 +78,41 @@ func (c *CategoryDto) toModel() Category {
 }
 
 const (
-	categoryIdName = "categoryId"
+	categoryIdName      = "categoryId"
+	faviconCategoryName = "favicon"
+	profileCategoryName = "profile"
 )
+
+var (
+	reservedCategories = []string{
+		faviconCategoryName, profileCategoryName,
+	}
+)
+
+func createReservedCategories() {
+
+	db.Transaction(func(tx *gorm.DB) error {
+		for _, categoryName := range reservedCategories {
+			res := tx.Where("name = ?", categoryName).Find(&Category{})
+			if res.RowsAffected > 0 {
+				continue
+			}
+
+			cat := Category{
+				Name:        categoryName,
+				DisplayName: strings.ToTitle(categoryName),
+				Description: "Reserved Category",
+			}
+
+			res = tx.Create(&cat)
+			if res.Error != nil {
+				return res.Error
+			}
+			logger.Infof("Created reserved category \"%s\"", categoryName)
+		}
+		return nil
+	})
+}
 
 // ------------- WEBSERVER HANDLER -------------
 
@@ -209,7 +242,7 @@ func updateCategoryForm(c *gin.Context) {
 
 func getAllCategories() []CategoryDto {
 	var categories []Category
-	db.Order("Name ASC").Find(&categories)
+	db.Order("Show DESC").Order("Name ASC").Find(&categories)
 
 	categoriesDto := Map(categories, func(a Category) CategoryDto {
 		return a.toDto()

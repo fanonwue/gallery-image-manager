@@ -245,7 +245,7 @@ func formatDescription(description string) string {
 }
 
 func truncateTables() error {
-	tables := []string{"images_categories", "images", "categories", "authors"}
+	tables := []string{"images_categories", "images", "authors", "icons"}
 
 	for _, table := range tables {
 		res := db.Exec("DELETE FROM " + table)
@@ -258,5 +258,11 @@ func truncateTables() error {
 			return res.Error
 		}
 	}
+
+	res := db.Unscoped().Delete(&Category{}, "name NOT IN ?", reservedCategories)
+	if res.Error != nil {
+		return res.Error
+	}
+
 	return nil
 }

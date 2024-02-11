@@ -45,9 +45,18 @@
         <label class="form-label" for="image-categories">Categories</label>
         <select class="form-select" id="image-categories" name="categories" multiple size="10">
             {{ range .categories}}
-                <option value="{{.ID}}" {{if categorySelected . $.image.Categories}} selected {{end}}>{{.DisplayName}}</option>
+                <option value="{{.ID}}"
+                        data-category-show="{{if derefBool .Show}}true{{else}}false{{end}}"
+                        {{if not (derefBool .Show)}}hidden{{end}}
+                        {{if categorySelected . $.image.Categories}} selected {{end}}
+                >{{.DisplayName}}</option>
             {{end}}
         </select>
+    </div>
+
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" id="image-categories-show-all">
+        <label class="form-check-label" for="image-categories-show-all">Show all categories</label>
     </div>
 
     <div class="mb-3">
@@ -102,6 +111,13 @@
 {{end}}
 
 <script>
+    const imageCategoriesSelect = document.querySelector('#image-categories')
 
+    document.querySelector('#image-categories-show-all')?.addEventListener("change", function (e) {
+        const hiddenCategories = imageCategoriesSelect.querySelectorAll('option[data-category-show="false"]')
+        hiddenCategories.forEach(category => {
+            this.checked ? category.removeAttribute("hidden") : category.setAttribute("hidden", "")
+        })
+    })
 </script>
 {{template "footer.gohtml"}}
