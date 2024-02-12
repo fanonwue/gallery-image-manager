@@ -28,7 +28,7 @@
 <hr>
     <a class="btn btn-primary" href="/authors/new">New Author</a>
 <hr>
-<table class="table table-striped">
+<table class="table table-striped table-hover table-bordered table-clickable">
     <thead>
     <tr>
         <th>ID</th>
@@ -37,9 +37,9 @@
         <th>Images</th>
     </tr>
     </thead>
-    <tbody>
+    <tbody class="table-group-divider">
     {{ range .authors }}
-        <tr>
+        <tr class="align-middle" data-target="/authors/{{.ID}}">
             <td class="d-grid gap-2"><a class="btn btn-primary" href="/authors/{{.ID}}">{{.ID}}</a></td>
             <td>{{.Name}}</td>
             <td>{{.Url}}</td>

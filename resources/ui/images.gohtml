@@ -57,7 +57,7 @@
 <hr>
 <a class="btn btn-primary" href="/images/new">New Image</a>
 <hr>
-<table class="table table-striped">
+<table class="table table-striped table-hover table-bordered table-sm table-clickable">
     <thead>
     <tr>
         <th>ID</th>
@@ -68,9 +68,9 @@
         <th>Sort Index</th>
     </tr>
     </thead>
-    <tbody>
+    <tbody class="table-group-divider">
     {{ range .images }}
-        <tr>
+        <tr class="align-middle" data-target="/images/{{.ID}}">
             <td class="d-grid gap-2"><a class="btn btn-primary" href="/images/{{.ID}}">{{.ID}}</a></td>
             <td>{{.Name}}</td>
             <td>{{.Title}}</td>
