@@ -219,6 +219,9 @@ func processImageAsync(config *ImageProcessConfig, targetChannel chan<- *ImagePr
 
 func processImage(config *ImageProcessConfig) (*ImageProcessResult, error) {
 	image := config.Image
+	if !image.ImageExists {
+		logger.Warnf("No image file exists for image %d", image.ID)
+	}
 
 	// Delete old processed images
 	oldFiles, err := filepath.Glob(fmt.Sprintf("%s/%s*", appConfig.ProcessedDir, image.ImageIdentifier()))

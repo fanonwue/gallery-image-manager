@@ -45,7 +45,7 @@ type (
 		Original bool
 		Name     string
 		ImageID  uint
-		Image    *Image `gorm:"index:idx_image_variants_image_id"`
+		Image    *Image
 	}
 
 	Icon struct {
@@ -103,6 +103,15 @@ type (
 		ImageID  uint   `json:"imageId" yaml:"imageId"`
 	}
 )
+
+func (i *Image) AfterCreate(tx *gorm.DB) (err error) {
+	if i.SortIndex == 0 {
+		i.SortIndex = int(i.ID * 10)
+		res := tx.Save(i)
+		return res.Error
+	}
+	return nil
+}
 
 func (i *Image) toDto() ImageDto {
 	dto := ImageDto{

@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 	"gopkg.in/yaml.v3"
+	"gorm.io/gorm"
 	"io"
 	"os"
 	"path"
 	"regexp"
 	"strings"
-	"sync"
 )
 
 type (
@@ -46,11 +46,16 @@ type (
 
 const (
 	galleryLibraryDefaultFormat = "webp"
-	importIdOffset              = 1
+	importIdOffset              = 19
 )
 
 var (
 	descriptionRegexReplace = regexp.MustCompile(`\\\s`)
+	nameIdMap               = map[string]uint{
+		"favicon":                  1,
+		"profile-banner":           2,
+		"profile-banner-christmas": 3,
+	}
 )
 
 func importMeta(libraryPath string) MetaImageCollection {
@@ -123,25 +128,27 @@ func importGalleryLibrary(libraryPath string) error {
 		return err
 	}
 
+	tx := db.Session(&gorm.Session{SkipHooks: true})
+
 	faviconImage := Image{
 		Name:        "favicon",
 		Title:       "FAVICON",
 		Description: "Favicon",
 	}
-	db.Create(&faviconImage)
+	tx.Create(&faviconImage)
 
 	var images []*Image
 
 	for idx, meta := range metaImages {
 		author := Author{}
 
-		res := db.Where("name = ?", meta.Author.Name).Limit(1).Find(&author)
+		res := tx.Where("name = ?", meta.Author.Name).Limit(1).Find(&author)
 
 		if res.RowsAffected == 0 {
 			// Author not already in DB
 			author.Name = meta.Author.Name
 			author.Url = meta.Author.Url
-			db.Create(&author)
+			tx.Create(&author)
 		}
 
 		var categories []*Category
@@ -149,7 +156,7 @@ func importGalleryLibrary(libraryPath string) error {
 		for _, metaCategory := range meta.Categories {
 			category := Category{}
 
-			res = db.Where("name = ?", metaCategory.Name).Limit(1).Find(&category)
+			res = tx.Where("name = ?", metaCategory.Name).Limit(1).Find(&category)
 
 			if res.RowsAffected == 0 {
 				category.Name = metaCategory.Name
@@ -158,7 +165,7 @@ func importGalleryLibrary(libraryPath string) error {
 				category.Show = *metaCategory.Show
 				category.Nsfw = metaCategory.Nsfw
 
-				db.Create(&category)
+				tx.Create(&category)
 			}
 
 			categories = append(categories, &category)
@@ -172,14 +179,19 @@ func importGalleryLibrary(libraryPath string) error {
 			Format:           meta.Format,
 			NoResize:         meta.NoResize,
 			IgnoreAuthorName: meta.IgnoreAuthorName,
-			AuthorID:         author.ID,
+			Author:           &author,
 			Categories:       categories,
-			SortIndex:        idx,
+			SortIndex:        (idx + 1) * 10,
 		}
 
 		image.ID = uint(meta.ID + importIdOffset)
 
-		res = db.Create(&image)
+		mappedId, found := nameIdMap[meta.Name]
+		if found {
+			image.ID = mappedId
+		}
+
+		res = tx.Create(&image)
 
 		if res.Error != nil {
 			return res.Error
@@ -191,7 +203,11 @@ func importGalleryLibrary(libraryPath string) error {
 	for _, meta := range metaImages {
 		image := Image{}
 		image.ID = uint(meta.ID + importIdOffset)
-		db.First(&image)
+		mappedId, found := nameIdMap[meta.Name]
+		if found {
+			image.ID = mappedId
+		}
+		tx.First(&image)
 
 		relatedImages := Map(meta.Related, func(r int) *Image {
 			relatedImage := Image{}
@@ -199,8 +215,13 @@ func importGalleryLibrary(libraryPath string) error {
 			return &relatedImage
 		})
 
-		db.Model(&image).Association("Related").Replace(&relatedImages)
+		err := tx.Model(&image).Association("Related").Append(&relatedImages)
+		if err != nil {
+			logger.Errorf("Error while adding related images: %v", err)
+		}
 	}
+
+	tx.Commit()
 
 	// Clear original folder
 	err = os.RemoveAll(path.Join(appConfig.OriginalDir))
@@ -213,18 +234,10 @@ func importGalleryLibrary(libraryPath string) error {
 		return err
 	}
 
-	wg := sync.WaitGroup{}
-
-	for i := range images {
-		wg.Add(1)
-		image := images[i]
-		func() {
-			defer wg.Done()
-			copyImageFile(image.ID, libraryPath)
-		}()
+	for _, image := range images {
+		copyImageFile(image.ID, libraryPath)
 	}
 
-	wg.Wait()
 	return nil
 
 }
@@ -259,8 +272,11 @@ func copyImageFile(imageId uint, libraryPath string) {
 
 	_, err = io.Copy(destination, source)
 	if err != nil {
-		logger.Errorf("Could not copying file: %v", err)
+		logger.Errorf("Could not copy file: %v", err)
 	}
+
+	image.ImageExists = true
+	db.Save(&image)
 }
 
 func formatDescription(description string) string {
@@ -268,7 +284,7 @@ func formatDescription(description string) string {
 }
 
 func truncateTables() error {
-	tables := []string{"images_categories", "images", "authors", "icons"}
+	tables := []string{"images_categories", "images", "authors", "icons", "images_relations", "image_variants"}
 
 	for _, table := range tables {
 		res := db.Exec("DELETE FROM " + table)
@@ -276,7 +292,7 @@ func truncateTables() error {
 			return res.Error
 		}
 
-		res = db.Exec("UPDATE SQLITE_SEQUENCE SET seq = 0 WHERE name = ?", table)
+		res = db.Exec("UPDATE sqlite_sequence SET seq = 0 WHERE name = ?", table)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -286,6 +302,7 @@ func truncateTables() error {
 	if res.Error != nil {
 		return res.Error
 	}
+	db.Exec("UPDATE sqlite_sequence SET seq = ? WHERE name = ?", len(reservedCategories), "categories")
 
 	return nil
 }
