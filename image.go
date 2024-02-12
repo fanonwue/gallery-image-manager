@@ -583,7 +583,22 @@ func updateImageForm(c *gin.Context) {
 			getImageHtml(c)
 		}
 	case "delete":
-		db.Delete(&image)
+		db.Transaction(func(tx *gorm.DB) error {
+			filePath := image.OriginalFilePath()
+			res := tx.Delete(&image)
+			if res.Error != nil {
+				c.Error(res.Error)
+				c.String(500, "Error deleting image in DB: %v", res.Error)
+				return res.Error
+			}
+			err = os.Remove(filePath)
+			if err != nil {
+				c.Error(err)
+				c.String(500, "Error deleting image original from disk: %v", err)
+				return err
+			}
+			return nil
+		})
 		c.Redirect(302, "/images")
 	}
 }
