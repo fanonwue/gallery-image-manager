@@ -128,11 +128,11 @@ func setupLogging() {
 
 func createConfig() *AppConfig {
 	config := AppConfig{
-		ExportDir: "data/export",
+		ExportDir: "data/export/result/",
 		DataDir:   "data/",
 		//ProcessedDir: "/mnt/m/Web/senex-gallery-content/managed/",
-		DbLocation: "/mnt/d/Sqlite/image-manager.db",
-		ImportDir:  "/mnt/m/Web/senex-gallery-content",
+		DbLocation: "db/main.db",
+		//ImportDir:  "/mnt/m/Web/senex-gallery-content",
 	}
 
 	config.ProcessedDir = path.Join(config.DataDir, "images/processed")
