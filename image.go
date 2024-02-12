@@ -870,7 +870,7 @@ func processImages(c *gin.Context) {
 		// Go will override variables in the for loop before the goroutine starts
 		// Grab the value directly from the array instead
 		image := images[i]
-		go processImageAsync(&ImageProcessConfig{
+		processImageAsync(&ImageProcessConfig{
 			Image:           &image,
 			ProcessOriginal: true,
 		}, resultChannel, &wg)
