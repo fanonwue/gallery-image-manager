@@ -63,8 +63,9 @@
         <th>ID</th>
         <th>Name</th>
         <th>Title</th>
-        <th>NSFW</th>
         <th>Categories</th>
+        <th>NSFW</th>
+        <th>Sort Index</th>
     </tr>
     </thead>
     <tbody>
@@ -73,8 +74,9 @@
             <td class="d-grid gap-2"><a class="btn btn-primary" href="/images/{{.ID}}">{{.ID}}</a></td>
             <td>{{.Name}}</td>
             <td>{{.Title}}</td>
-            <td>{{if .Nsfw}}Yes{{else}}No{{end}}</td>
             <td>{{joinStrings .CategoryNames ", " }}</td>
+            <td>{{if .Nsfw}}Yes{{else}}No{{end}}</td>
+            <td>{{.SortIndex}}</td>
         </tr>
     {{ end }}
     </tbody>
