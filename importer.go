@@ -46,6 +46,7 @@ type (
 
 const (
 	galleryLibraryDefaultFormat = "webp"
+	importIdOffset              = 1
 )
 
 var (
@@ -122,11 +123,16 @@ func importGalleryLibrary(libraryPath string) error {
 		return err
 	}
 
+	faviconImage := Image{
+		Name:        "favicon",
+		Title:       "FAVICON",
+		Description: "Favicon",
+	}
+	db.Create(&faviconImage)
+
 	var images []*Image
 
-	for i := range metaImages {
-		meta := &metaImages[i]
-
+	for idx, meta := range metaImages {
 		author := Author{}
 
 		res := db.Where("name = ?", meta.Author.Name).Limit(1).Find(&author)
@@ -168,7 +174,10 @@ func importGalleryLibrary(libraryPath string) error {
 			IgnoreAuthorName: meta.IgnoreAuthorName,
 			AuthorID:         author.ID,
 			Categories:       categories,
+			SortIndex:        idx,
 		}
+
+		image.ID = uint(meta.ID + importIdOffset)
 
 		res = db.Create(&image)
 
@@ -177,6 +186,20 @@ func importGalleryLibrary(libraryPath string) error {
 		}
 
 		images = append(images, &image)
+	}
+
+	for _, meta := range metaImages {
+		image := Image{}
+		image.ID = uint(meta.ID + importIdOffset)
+		db.First(&image)
+
+		relatedImages := Map(meta.Related, func(r int) *Image {
+			relatedImage := Image{}
+			relatedImage.ID = uint(r + importIdOffset)
+			return &relatedImage
+		})
+
+		db.Model(&image).Association("Related").Replace(&relatedImages)
 	}
 
 	// Clear original folder

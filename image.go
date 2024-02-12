@@ -27,6 +27,7 @@ type (
 		IgnoreAuthorName bool
 		ImageExists      bool
 		AuthorID         uint
+		SortIndex        int
 		Author           *Author
 		Categories       []*Category `gorm:"many2many:images_categories"`
 		Related          []*Image    `gorm:"many2many:images_relations;association_jointable_foreignkey:related_id"`
@@ -62,13 +63,15 @@ type (
 		Title            string            `json:"title" yaml:"title"`
 		Description      string            `json:"description" yaml:"description"`
 		Nsfw             *bool             `json:"nsfw" yaml:"nsfw"`
+		SortIndex        int               `json:"sortIndex" yaml:"sortIndex"`
 		Format           string            `json:"format" yaml:"format"`
 		NoResize         *bool             `json:"noResize" yaml:"noResize"`
 		IgnoreAuthorName *bool             `json:"ignoreAuthorName" yaml:"ignoreAuthorName"`
 		AuthorID         uint              `json:"authorId" yaml:"authorId"`
-		Author           *AuthorDto        `json:"author" yaml:"author"`
+		Author           *AuthorDto        `json:"author,omitempty" yaml:"author,omitempty"`
+		Related          []uint            `json:"related,omitempty" yaml:"related,omitempty"`
 		Variants         []ImageVariantDto `json:"variants,omitempty" yaml:"variants,omitempty"`
-		Categories       []uint            `json:"categories,omitempty" yaml:"categories",omitempty`
+		Categories       []uint            `json:"categories,omitempty" yaml:"categories,omitempty"`
 	}
 
 	ImageView struct {
@@ -84,6 +87,7 @@ type (
 		Categories    []uint
 		CategoryNames []string
 		RelatedIds    []uint
+		SortIndex     int
 		Related       map[uint]string
 	}
 
@@ -111,6 +115,7 @@ func (i *Image) toDto() ImageDto {
 		IgnoreAuthorName: &i.IgnoreAuthorName,
 		Nsfw:             &i.Nsfw,
 		AuthorID:         i.AuthorID,
+		SortIndex:        i.SortIndex,
 	}
 
 	if i.Categories != nil {
@@ -122,6 +127,12 @@ func (i *Image) toDto() ImageDto {
 	if i.Author != nil {
 		authorDto := i.Author.toDto()
 		dto.Author = &authorDto
+	}
+
+	if i.Related != nil {
+		dto.Related = Map(i.Related, func(related *Image) uint {
+			return related.ID
+		})
 	}
 
 	return dto
@@ -146,6 +157,7 @@ func (i *Image) toView() ImageView {
 		Nsfw:          i.Nsfw,
 		Format:        i.Format,
 		ImageExists:   i.ImageExists,
+		SortIndex:     i.SortIndex,
 		Categories:    make([]uint, len(i.Categories)),
 		CategoryNames: make([]string, len(i.Categories)),
 		Related:       make(map[uint]string, len(i.Related)),
@@ -176,6 +188,10 @@ func (i *Image) toView() ImageView {
 }
 
 func (i *Image) updateWithDto(dto ImageDto) {
+	if dto.SortIndex != 0 {
+		i.SortIndex = dto.SortIndex
+	}
+
 	if len(dto.Name) > 0 {
 		i.Name = dto.Name
 	}
@@ -360,10 +376,12 @@ func fetchImages(c *gin.Context) ([]*Image, *ListFilter, error) {
 
 	sortBy := c.Query("sortBy")
 	if len(sortBy) == 0 {
-		sortBy = "id"
+		sortBy = "sortIndex"
 	}
 	filter.SortBy = sortBy
 	switch sortBy {
+	case "sortIndex":
+		tx = tx.Order("sort_index " + sortMode)
 	case "id":
 		tx = tx.Order("id " + sortMode)
 	case "name":
@@ -451,6 +469,10 @@ func updateImageForm(c *gin.Context) {
 			Name:        c.PostForm("name"),
 			Title:       c.PostForm("title"),
 			Description: c.PostForm("description"),
+		}
+
+		if newSortIndex, err := strconv.Atoi(c.PostForm("sortIndex")); err == nil {
+			dto.SortIndex = newSortIndex
 		}
 
 		rawNsfw := c.PostForm("nsfw")
@@ -620,17 +642,17 @@ func uploadImageForm(c *gin.Context) {
 }
 
 func getIcons(c *gin.Context) {
-	var favicons []Icon
+	var icons []Icon
 
-	res := db.Find(&favicons)
+	res := db.Find(&icons)
 
 	if res.Error != nil {
 		c.Error(res.Error)
-		c.String(500, "Error searching for favicons")
+		c.String(500, "Error searching for icons")
 		return
 	}
 
-	favicons = append(favicons, Icon{
+	icons = append(icons, Icon{
 		Height:   0,
 		Width:    0,
 		Format:   "ico",
@@ -638,7 +660,7 @@ func getIcons(c *gin.Context) {
 		Type:     "favicon",
 	})
 
-	c.JSON(200, &favicons)
+	c.JSON(200, &icons)
 }
 
 func getImages(c *gin.Context) {
@@ -749,19 +771,19 @@ func deleteImage(c *gin.Context) {
 }
 
 func processFaviconApi(c *gin.Context) {
-	var faviconCategory Category
+	var iconCategory Category
 
-	db.Preload("Images").First(&faviconCategory, &Category{Name: faviconCategoryName})
+	db.Preload("Images").First(&iconCategory, &Category{Name: iconCategoryName})
 
-	images := faviconCategory.Images
+	images := iconCategory.Images
 	if len(images) == 0 {
-		c.String(500, "No image in \"%s\" category", faviconCategoryName)
+		c.String(500, "No image in \"%s\" category", iconCategoryName)
 		return
 	}
 
 	image := images[0]
 
-	faviconResult, err := processFavicon(image)
+	iconResult, err := processIcon(image)
 	if err != nil {
 		c.Error(err)
 		c.String(500, c.Error(err).Error())
@@ -771,7 +793,7 @@ func processFaviconApi(c *gin.Context) {
 	tx.Unscoped().Delete(Icon{})
 
 	icons := make([]Icon, 0)
-	for _, iconResult := range faviconResult {
+	for _, iconResult := range iconResult {
 		for _, variant := range iconResult.Variants {
 			icons = append(icons, Icon{
 				Height:      variant.Height,
@@ -786,7 +808,7 @@ func processFaviconApi(c *gin.Context) {
 
 	tx.Create(&icons)
 	tx.Commit()
-	jsonBytes, err := json.Marshal(&faviconResult)
+	jsonBytes, err := json.Marshal(&iconResult)
 	if err != nil {
 		c.String(500, c.Error(err).Error())
 	}
@@ -795,7 +817,7 @@ func processFaviconApi(c *gin.Context) {
 		c.String(500, c.Error(err).Error())
 	}
 
-	c.JSON(200, &faviconResult)
+	c.JSON(200, &iconResult)
 }
 
 func processImages(c *gin.Context) {

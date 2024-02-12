@@ -79,13 +79,13 @@ func (c *CategoryDto) toModel() Category {
 
 const (
 	categoryIdName      = "categoryId"
-	faviconCategoryName = "favicon"
+	iconCategoryName    = "icon"
 	profileCategoryName = "profile"
 )
 
 var (
 	reservedCategories = []string{
-		faviconCategoryName, profileCategoryName,
+		iconCategoryName, profileCategoryName,
 	}
 )
 

@@ -6,10 +6,19 @@
     <p>
         Use the navbar for navigation.
     </p>
-    <form method="POST" action="images/process">
-        <button class="btn btn-primary">Process Images</button>
-    </form>
-    <form method="POST" action="images/process-icons">
-        <button class="btn btn-primary">Process Icons</button>
-    </form>
+    <div class="mb-3">
+        <form method="POST" action="images/process">
+            <button class="btn btn-primary">Process Images</button>
+        </form>
+    </div>
+    <div class="mb-3">
+        <form method="POST" action="images/process-icons">
+            <button class="btn btn-primary">Process Icons</button>
+        </form>
+    </div>
+    <div class="mb-3">
+        <form method="POST" action="/export">
+            <button class="btn btn-primary">Export</button>
+        </form>
+    </div>
 {{template "footer.gohtml"}}

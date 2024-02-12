@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gallery-image-manager/util"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -13,6 +14,7 @@ import (
 	"html/template"
 	"os"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -20,9 +22,10 @@ import (
 
 type (
 	AppConfig struct {
+		ExportDir    string
 		DataDir      string
 		ProcessedDir string
-		FaviconDir   string
+		IconDir      string
 		OriginalDir  string
 		ImportDir    string
 		DbLocation   string
@@ -125,7 +128,8 @@ func setupLogging() {
 
 func createConfig() *AppConfig {
 	config := AppConfig{
-		DataDir: "data/",
+		ExportDir: "data/export",
+		DataDir:   "data/",
 		//ProcessedDir: "/mnt/m/Web/senex-gallery-content/managed/",
 		DbLocation: "/mnt/d/Sqlite/image-manager.db",
 		ImportDir:  "/mnt/m/Web/senex-gallery-content",
@@ -133,7 +137,7 @@ func createConfig() *AppConfig {
 
 	config.ProcessedDir = path.Join(config.DataDir, "images/processed")
 	config.OriginalDir = path.Join(config.DataDir, "images/originals")
-	config.FaviconDir = path.Join(config.DataDir, "icons")
+	config.IconDir = path.Join(config.DataDir, "icons")
 
 	appConfig = &config
 	return appConfig
@@ -164,7 +168,7 @@ func apiPath(pathTemplate string, idNames ...any) string {
 }
 
 func createDirIfNotExists(dir string) error {
-	return os.MkdirAll(dir, os.ModePerm)
+	return os.MkdirAll(dir, os.ModeDir|os.ModePerm)
 }
 
 func setup() {
@@ -173,7 +177,135 @@ func setup() {
 	createDirIfNotExists(appConfig.DataDir)
 	createDirIfNotExists(appConfig.OriginalDir)
 	createDirIfNotExists(appConfig.ProcessedDir)
-	createDirIfNotExists(appConfig.FaviconDir)
+	createDirIfNotExists(appConfig.IconDir)
+}
+
+func exportData(c *gin.Context) {
+	tx := db.Session(&gorm.Session{})
+
+	err := os.RemoveAll(appConfig.ExportDir)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+
+	metaExportDir := path.Join(appConfig.ExportDir, "meta")
+	err = createDirIfNotExists(appConfig.ExportDir)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+
+	err = util.CopyDirectory(appConfig.ProcessedDir, appConfig.ExportDir)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+
+	iconsExportDir := path.Join(appConfig.ExportDir, "icons")
+	err = createDirIfNotExists(iconsExportDir)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+
+	err = util.CopyDirectory(appConfig.IconDir, iconsExportDir)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+
+	err = createDirIfNotExists(metaExportDir)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+
+	var jsonBytes []byte
+
+	iconCategory := Category{Name: iconCategoryName}
+	tx.First(&iconCategory)
+
+	var images []Image
+	tx.
+		Preload("Variants").
+		Preload("Categories").
+		Preload("Related").
+		Find(&images)
+
+	imagesDto := make([]ImageDto, 0, len(images))
+
+	for _, image := range images {
+		dto := image.toDtoWithVariants()
+		if slices.Contains(dto.Categories, iconCategory.ID) {
+			logger.Infof("Skipping image in icon category")
+		} else {
+			imagesDto = append(imagesDto, dto)
+		}
+	}
+
+	jsonBytes, err = json.Marshal(&imagesDto)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+	err = os.WriteFile(path.Join(metaExportDir, "images.json"), jsonBytes, 0644)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+
+	var categories []Category
+	tx.Find(&categories)
+
+	categoriesDto := Map(categories, func(c Category) CategoryDto {
+		return c.toDto()
+	})
+
+	jsonBytes, err = json.Marshal(&categoriesDto)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+	err = os.WriteFile(path.Join(metaExportDir, "categories.json"), jsonBytes, 0666)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+
+	var authors []Author
+	tx.Find(&authors)
+
+	authorsDto := Map(authors, func(a Author) AuthorDto {
+		return a.toDto()
+	})
+
+	jsonBytes, err = json.Marshal(&authorsDto)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+	err = os.WriteFile(path.Join(metaExportDir, "authors.json"), jsonBytes, 0666)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+
+	var icons []Icon
+	tx.Find(&icons)
+
+	jsonBytes, err = json.Marshal(&icons)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+	err = os.WriteFile(path.Join(iconsExportDir, "icons.json"), jsonBytes, 0666)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+
+	c.String(200, "Exported to %s", appConfig.ExportDir)
 }
 
 func main() {
@@ -194,6 +326,8 @@ func main() {
 	}
 
 	createReservedCategories()
+
+	//importGalleryLibrary(appConfig.ImportDir)
 
 	readAccounts()
 
@@ -251,9 +385,11 @@ func main() {
 	authorized.GET(fmt.Sprintf("/categories/:%s", categoryIdName), getCategoryHtml)
 	authorized.POST(fmt.Sprintf("/categories/:%s", categoryIdName), updateCategoryForm)
 
+	authorized.POST("/export", exportData)
+
 	r.Static("/files/originals", appConfig.OriginalDir)
 	r.Static("/files/processed", appConfig.ProcessedDir)
-	r.Static("/files/icons", appConfig.FaviconDir)
+	r.Static("/files/icons", appConfig.IconDir)
 
 	r.POST(apiPath("/auth/login"))
 

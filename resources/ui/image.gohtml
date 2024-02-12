@@ -1,9 +1,15 @@
 {{template "header.gohtml"}}
 <form method="POST">
     <input type="hidden" name="action" value="save">
-    <div class="mb-3">
-        <label class="form-label bold" for="image-id">Image ID</label>
-        <input class="form-control" id="image-id" readonly value="{{.image.ID}}">
+    <div class="row mb-3">
+        <div class="col">
+            <label class="form-label bold" for="image-id">Image ID</label>
+            <input class="form-control" id="image-id" readonly value="{{.image.ID}}">
+        </div>
+        <div class="col">
+            <label class="form-label bold" for="image-sort-idx">Sort Index</label>
+            <input class="form-control" id="image-sort-idx" name="sortIndex" value="{{.image.SortIndex}}">
+        </div>
     </div>
 
     <div class="mb-3">

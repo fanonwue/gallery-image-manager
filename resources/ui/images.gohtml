@@ -32,6 +32,7 @@
     <div class="mb-3">
         <label class="form-label" for="filter-sort-by">Sort by</label>
         <select class="form-select" id="filter-sort-by" name="sortBy">
+            <option value="sortIndex" {{if eq .filter.SortBy "sortIndex"}} selected {{end}}>Sort Index</option>
             <option value="id" {{if eq .filter.SortBy "id"}} selected {{end}}>ID</option>
             <option value="name" {{if eq .filter.SortBy "name"}} selected {{end}}>Name</option>
             <option value="title" {{if eq .filter.SortBy "title"}} selected {{end}}>Title</option>
@@ -45,7 +46,7 @@
         </div>
         <div class="form-check form-check-inline">
             <input class="form-check-input" id="filter-sort-desc" name="sortMode" value="desc" type="radio" {{if eq .filter.SortMode "desc"}} checked {{end}}>
-            <label class="form-check-label" for="filter-sort-asc">Descending</label>
+            <label class="form-check-label" for="filter-sort-desc">Descending</label>
         </div>
     </div>
 

@@ -45,7 +45,7 @@ type (
 		Variants    []ProcessedImageVariant `json:"variants" yaml:"variants"`
 	}
 
-	FaviconProcessResult struct {
+	IconProcessResult struct {
 		Name     string                  `json:"name" yaml:"name"`
 		Author   uint                    `json:"author" yaml:"author"`
 		Nsfw     bool                    `json:"nsfw" yaml:"nsfw"`
@@ -83,7 +83,7 @@ var (
 	originalProcRule *ProcessingRule
 )
 
-func faviconProcessRules() []ProcessingRule {
+func IconProcessingRules() []ProcessingRule {
 	pwaBackground := &bimg.Color{R: 67, G: 118, B: 198}
 
 	formats := []bimg.ImageType{
@@ -312,11 +312,11 @@ func imageSize(image *bimg.Image) (bimg.ImageSize, error) {
 	return size, err
 }
 
-func processFavicon(image *Image) ([]*FaviconProcessResult, error) {
+func processIcon(image *Image) ([]*IconProcessResult, error) {
 	result, err := processImage(&ImageProcessConfig{
-		TargetPath:   appConfig.FaviconDir,
+		TargetPath:   appConfig.IconDir,
 		Image:        image,
-		ProcessRules: faviconProcessRules(),
+		ProcessRules: IconProcessingRules(),
 	})
 
 	if err != nil {
@@ -340,10 +340,10 @@ func processFavicon(image *Image) ([]*FaviconProcessResult, error) {
 		iconTypes[iconType] = variants
 	}
 
-	processResults := make([]*FaviconProcessResult, 0, len(iconTypes))
+	processResults := make([]*IconProcessResult, 0, len(iconTypes))
 
 	for name, variants := range iconTypes {
-		processResults = append(processResults, &FaviconProcessResult{
+		processResults = append(processResults, &IconProcessResult{
 			Name:     name,
 			Author:   image.AuthorID,
 			Variants: variants,
