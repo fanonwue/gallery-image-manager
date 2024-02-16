@@ -546,7 +546,7 @@ func updateImageForm(c *gin.Context) {
 		if newRelatedImages != nil {
 			// Delete old relations to this image
 			if image.Related != nil && len(image.Related) > 0 {
-				err = tx.Model(image.Related).Association("Related").Delete(&image)
+				err = tx.Model(&newRelatedImages).Association("Related").Delete(&image)
 				if err != nil {
 					c.Error(err)
 					c.String(500, "Error deleting old related images associations: %v", err)
@@ -555,24 +555,30 @@ func updateImageForm(c *gin.Context) {
 				}
 			}
 
-			err = tx.Model(&image).Association("Related").Replace(&newRelatedImages)
+			err = tx.Model(&image).Association("Related").Clear()
 			if err != nil {
 				c.Error(err)
-				c.String(500, "Error updating related images associations: %v", err)
+				c.String(500, "Error clearing image relations: %v", err)
 				tx.Rollback()
 				return
 			}
 
-			relationsToCurrentImage := Map(newRelatedImages, func(related *Image) any {
-				return image
-			})
+			for _, newRelatedImage := range newRelatedImages {
+				res = tx.Exec("INSERT INTO images_relations (image_id, related_id) VALUES (?, ?)", image.ID, newRelatedImage.ID)
+				if res.Error != nil {
+					c.Error(res.Error)
+					c.String(500, "Error adding image relation: %v", res.Error)
+					tx.Rollback()
+					return
+				}
 
-			err = tx.Model(&newRelatedImages).Association("Related").Append(relationsToCurrentImage...)
-			if err != nil {
-				c.Error(err)
-				c.String(500, "Error update related images relation: %v", err)
-				tx.Rollback()
-				return
+				res = tx.Exec("INSERT INTO images_relations (related_id, image_id) VALUES (?, ?)", image.ID, newRelatedImage.ID)
+				if res.Error != nil {
+					c.Error(res.Error)
+					c.String(500, "Error update related images relation: %v", res.Error)
+					tx.Rollback()
+					return
+				}
 			}
 		}
 		tx.Commit()
