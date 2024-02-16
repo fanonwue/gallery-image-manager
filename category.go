@@ -58,7 +58,8 @@ func (c *Category) updateWithDto(dto CategoryDto) {
 		c.DisplayName = c.Name
 	}
 	if len(dto.Description) > 0 {
-		c.Description = dto.Description
+		formattedDescription := strings.ReplaceAll(dto.Description, "\r\n", "\n")
+		c.Description = formattedDescription
 	}
 	if dto.Show != nil {
 		c.Show = *dto.Show

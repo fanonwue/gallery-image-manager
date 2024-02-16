@@ -205,7 +205,8 @@ func (i *Image) updateWithDto(dto ImageDto) {
 		i.Name = dto.Name
 	}
 	if len(dto.Description) > 0 {
-		i.Description = dto.Description
+		formattedDescription := strings.ReplaceAll(dto.Description, "\r\n", "\n")
+		i.Description = formattedDescription
 	}
 	if len(dto.Title) > 0 {
 		i.Title = dto.Title
