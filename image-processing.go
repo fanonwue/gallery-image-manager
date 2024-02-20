@@ -76,6 +76,7 @@ const (
 	highImageQuality     = 90
 	originalImageQuality = 95
 	defaultFaviconSize   = 192
+	suffixSeparator      = "_"
 )
 
 var (
@@ -217,6 +218,13 @@ func processImageAsync(config *ImageProcessConfig, targetChannel chan<- *ImagePr
 	}
 }
 
+func deleteFiles(glob string) {
+	oldFiles, _ := filepath.Glob(glob)
+	for _, file := range oldFiles {
+		_ = os.Remove(file)
+	}
+}
+
 func processImage(config *ImageProcessConfig) (*ImageProcessResult, error) {
 	image := config.Image
 	if !image.ImageExists {
@@ -224,10 +232,8 @@ func processImage(config *ImageProcessConfig) (*ImageProcessResult, error) {
 	}
 
 	// Delete old processed images
-	oldFiles, err := filepath.Glob(fmt.Sprintf("%s/%s*", appConfig.ProcessedDir, image.ImageIdentifier()))
-	for _, file := range oldFiles {
-		_ = os.Remove(file)
-	}
+	deleteFiles(fmt.Sprintf("%s/%s.*", appConfig.ProcessedDir, image.ImageIdentifier()))
+	deleteFiles(fmt.Sprintf("%s/%s%s*", appConfig.ProcessedDir, image.ImageIdentifier(), suffixSeparator))
 
 	imageFile, err := os.ReadFile(image.OriginalFilePath())
 	if err != nil {
@@ -415,7 +421,7 @@ func processImageRule(imageOptions ImageOptions) (*ProcessedImageVariant, error)
 	}
 
 	if len(procRule.Suffix) > 0 {
-		result.FileName = fmt.Sprintf("%s-%s.%s", baseFileName, procRule.Suffix, bimg.ImageTypeName(procRule.Format))
+		result.FileName = fmt.Sprintf("%s%s%s.%s", baseFileName, suffixSeparator, procRule.Suffix, bimg.ImageTypeName(procRule.Format))
 	} else if procRule.NoSizeSuffix {
 		result.FileName = fmt.Sprintf("%s.%s", baseFileName, bimg.ImageTypeName(procRule.Format))
 	} else {
@@ -441,5 +447,5 @@ func processImageRule(imageOptions ImageOptions) (*ProcessedImageVariant, error)
 }
 
 func processedImageFilename(name string, size bimg.ImageSize, format bimg.ImageType) string {
-	return fmt.Sprintf("%s-%dx%d.%s", name, size.Width, size.Height, bimg.ImageTypeName(format))
+	return fmt.Sprintf("%s%s%dx%d.%s", name, suffixSeparator, size.Width, size.Height, bimg.ImageTypeName(format))
 }
