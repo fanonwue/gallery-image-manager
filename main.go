@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +31,7 @@ type (
 		ImportDir    string
 		DbLocation   string
 		PasswordHash string
+		Port         uint16
 	}
 
 	Account struct {
@@ -128,11 +130,12 @@ func setupLogging() {
 
 func createConfig() *AppConfig {
 	config := AppConfig{
-		ExportDir: "data/export/result/",
+		ExportDir: "data/export",
 		DataDir:   "data/",
 		//ProcessedDir: "/mnt/m/Web/senex-gallery-content/managed/",
-		DbLocation: "db/main.db",
-		//ImportDir:  "/mnt/m/Web/senex-gallery-content",
+		DbLocation: "/mnt/d/Sqlite/image-manager.db",
+		ImportDir:  "/mnt/m/Web/senex-gallery-content",
+		Port:       3000,
 	}
 
 	config.ProcessedDir = path.Join(config.DataDir, "images/processed")
@@ -231,9 +234,12 @@ func exportData(c *gin.Context) {
 		Preload("Variants").
 		Preload("Categories").
 		Preload("Related").
+		Order("sort_index ASC").
+		Order("id ASC").
 		Find(&images)
 
 	imagesDto := make([]ImageDto, 0, len(images))
+	preloadUrlBuffer := bytes.Buffer{}
 
 	for _, image := range images {
 		dto := image.toDtoWithVariants()
@@ -241,6 +247,10 @@ func exportData(c *gin.Context) {
 			logger.Infof("Skipping image in icon category")
 		} else {
 			imagesDto = append(imagesDto, dto)
+
+			for _, variant := range image.Variants {
+				preloadUrlBuffer.WriteString("/export/" + variant.FileName + "\n")
+			}
 		}
 	}
 
@@ -250,6 +260,11 @@ func exportData(c *gin.Context) {
 		return
 	}
 	err = os.WriteFile(path.Join(metaExportDir, "images.json"), jsonBytes, 0644)
+	if err != nil {
+		c.String(500, c.Error(err).Error())
+		return
+	}
+	err = os.WriteFile(path.Join(metaExportDir, "preload.txt"), preloadUrlBuffer.Bytes(), 0644)
 	if err != nil {
 		c.String(500, c.Error(err).Error())
 		return
@@ -267,7 +282,7 @@ func exportData(c *gin.Context) {
 		c.String(500, c.Error(err).Error())
 		return
 	}
-	err = os.WriteFile(path.Join(metaExportDir, "categories.json"), jsonBytes, 0666)
+	err = os.WriteFile(path.Join(metaExportDir, "categories.json"), jsonBytes, 0644)
 	if err != nil {
 		c.String(500, c.Error(err).Error())
 		return
@@ -285,7 +300,7 @@ func exportData(c *gin.Context) {
 		c.String(500, c.Error(err).Error())
 		return
 	}
-	err = os.WriteFile(path.Join(metaExportDir, "authors.json"), jsonBytes, 0666)
+	err = os.WriteFile(path.Join(metaExportDir, "authors.json"), jsonBytes, 0644)
 	if err != nil {
 		c.String(500, c.Error(err).Error())
 		return
@@ -299,7 +314,7 @@ func exportData(c *gin.Context) {
 		c.String(500, c.Error(err).Error())
 		return
 	}
-	err = os.WriteFile(path.Join(iconsExportDir, "icons.json"), jsonBytes, 0666)
+	err = os.WriteFile(path.Join(iconsExportDir, "icons.json"), jsonBytes, 0644)
 	if err != nil {
 		c.String(500, c.Error(err).Error())
 		return
@@ -330,6 +345,8 @@ func main() {
 	//importGalleryLibrary(appConfig.ImportDir)
 
 	readAccounts()
+
+	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
 	r.Use(ginzap.Ginzap(logger.Desugar(), time.RFC3339, false))
@@ -415,7 +432,8 @@ func main() {
 	authorized.PATCH(apiPath("/authors/:%s", authorIdName), updateAuthor)
 	authorized.DELETE(apiPath("/authors/:%s", authorIdName), deleteAuthor)
 
-	err = r.Run(":3000")
+	logger.Infof("Server starting at http://localhost:%d", appConfig.Port)
+	err = r.Run(fmt.Sprintf(":%d", appConfig.Port))
 	if err != nil {
 		logger.Errorf("Error starting web server: %v", err)
 	}
