@@ -582,6 +582,12 @@ func updateImageForm(c *gin.Context) {
 				}
 			}
 		}
+
+		_, processAfterUpload := c.GetPostForm("process")
+		if processAfterUpload {
+			processImageForm(c, tx)
+		}
+
 		tx.Commit()
 
 		if isNewImage {
@@ -653,23 +659,32 @@ func uploadImageForm(c *gin.Context) {
 
 	_, processAfterUpload := c.GetPostForm("process")
 	if processAfterUpload {
-		result, err := processImage(&ImageProcessConfig{
-			Image:           image,
-			ProcessOriginal: true,
-		})
-		if err != nil {
-			c.Error(err)
-			c.String(500, "Error processing file after upload: %v", err)
-			return
-		}
-
-		_ = saveProcessResult(result, tx)
+		processImageForm(c, tx)
 	}
 
 	tx.Commit()
 
 	c.Redirect(302, fmt.Sprintf("/images/%d", image.ID))
 
+}
+
+func processImageForm(c *gin.Context, tx *gorm.DB) {
+	image, err := loadImage(c)
+	if err != nil || !image.ImageExists {
+		return
+	}
+
+	result, err := processImage(&ImageProcessConfig{
+		Image:           image,
+		ProcessOriginal: true,
+	})
+	if err != nil {
+		c.Error(err)
+		c.String(500, "Error processing file after upload: %v", err)
+		return
+	}
+
+	_ = saveProcessResult(result, tx)
 }
 
 func getIcons(c *gin.Context) {
