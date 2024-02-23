@@ -1,42 +1,44 @@
 {{template "header.gohtml"}}
-<form method="POST">
-    <input type="hidden" name="action" value="save">
-    <div class="mb-3">
-        <label class="form-label bold" for="author-id">Author ID</label>
-        <input class="form-control" id="author-id" readonly value="{{.author.ID}}">
-    </div>
+<div>
+    <form method="POST">
+        <input type="hidden" name="action" value="save">
+        <div class="mb-3">
+            <label class="form-label bold" for="author-id">Author ID</label>
+            <input class="form-control" id="author-id" readonly value="{{.author.ID}}">
+        </div>
 
-    <div class="mb-3">
-        <label class="form-label bold" for="author-name">Name</label>
-        <input class="form-control" id="author-name" name="name" value="{{.author.Name}}" required>
-    </div>
+        <div class="mb-3">
+            <label class="form-label bold" for="author-name">Name</label>
+            <input class="form-control" id="author-name" name="name" value="{{.author.Name}}" required>
+        </div>
 
-    <div class="mb-3">
-        <label class="form-label bold" for="author-url">URL</label>
-        <input class="form-control" id="author-url" name="url" value="{{.author.Url}}" required>
-    </div>
+        <div class="mb-3">
+            <label class="form-label bold" for="author-url">URL</label>
+            <input class="form-control" id="author-url" name="url" value="{{.author.Url}}" required>
+        </div>
 
-    <div class="d-grid gap-2">
-        <button type="submit" class="btn btn-primary">Save</button>
-    </div>
-</form>
-<hr>
-<div class="d-grid gap-2">
-    <a class="btn btn-secondary" href="/images?author={{.author.ID}}">{{.author.ImageCount}} Images</a>
-</div>
-{{if gt .author.ID 0}}
+        <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+    </form>
     <hr>
-    {{if eq .author.ImageCount 0}}
-        <form method="POST">
-            <input type="hidden" name="action" value="delete">
-            <div class="d-grid gap-2">
-                <button class="btn btn-danger confirm-delete" type="submit">Delete</button>
-            </div>
-        </form>
-    {{else}}
-        <p>
-            Only Authors without any images attached to them can be deleted!
-        </p>
+    <div class="d-grid gap-2">
+        <a class="btn btn-secondary" href="/images?author={{.author.ID}}">{{.author.ImageCount}} Images</a>
+    </div>
+    {{if gt .author.ID 0}}
+        <hr>
+        {{if eq .author.ImageCount 0}}
+            <form method="POST">
+                <input type="hidden" name="action" value="delete">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-danger confirm-delete" type="submit">Delete</button>
+                </div>
+            </form>
+        {{else}}
+            <p>
+                Only Authors without any images attached to them can be deleted!
+            </p>
+        {{end}}
     {{end}}
-{{end}}
+</div>
 {{template "footer.gohtml"}}

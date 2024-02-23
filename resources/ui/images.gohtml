@@ -1,84 +1,86 @@
 {{template "header.gohtml"}}
-<form method="GET" class="submit-on-change" id="image-filter">
-    <div class="mb-3">
-        <label class="form-label" for="filter-author">Author</label>
-        <select class="form-select" id="filter-author" name="author">
-            <option value="">Any</option>
-            {{ range .authors}}
-                <option value="{{.ID}}" {{if eq .ID $.filter.Author}} selected {{end}}>{{.Name}}</option>
-            {{end}}
-        </select>
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label" for="filter-category">Category</label>
-        <select class="form-select" id="filter-category" name="category">
-            <option value="">Any</option>
-            {{ range .categories}}
-                <option value="{{.ID}}" {{if eq .ID $.filter.Category}} selected {{end}}>{{.DisplayName}}</option>
-            {{end}}
-        </select>
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label" for="filter-nsfw">NSFW</label>
-        <select class="form-select" id="filter-nsfw" name="nsfw">
-            <option value="" {{if isNull .filter.Nsfw}} selected {{end}}>Any</option>
-            <option value="1" {{if notNullAndTrue .filter.Nsfw}} selected {{end}}>Yes</option>
-            <option value="0" {{if notNullAndFalse .filter.Nsfw}} selected {{end}}>No</option>
-        </select>
-    </div>
-
-    <div class="mb-3">
-        <label class="form-label" for="filter-sort-by">Sort by</label>
-        <select class="form-select" id="filter-sort-by" name="sortBy">
-            <option value="sortIndex" {{if eq .filter.SortBy "sortIndex"}} selected {{end}}>Sort Index</option>
-            <option value="id" {{if eq .filter.SortBy "id"}} selected {{end}}>ID</option>
-            <option value="name" {{if eq .filter.SortBy "name"}} selected {{end}}>Name</option>
-            <option value="title" {{if eq .filter.SortBy "title"}} selected {{end}}>Title</option>
-        </select>
-    </div>
-
-    <div class="mb-3">
-        <div class="form-check form-check-inline">
-            <input class="form-check-input" id="filter-sort-asc" name="sortMode" value="asc" type="radio" {{if eq .filter.SortMode "asc"}} checked {{end}}>
-            <label class="form-check-label" for="filter-sort-asc">Ascending</label>
+<div>
+    <form method="GET" class="submit-on-change" id="image-filter">
+        <div class="mb-3">
+            <label class="form-label" for="filter-author">Author</label>
+            <select class="form-select" id="filter-author" name="author">
+                <option value="">Any</option>
+                {{ range .authors}}
+                    <option value="{{.ID}}" {{if eq .ID $.filter.Author}} selected {{end}}>{{.Name}}</option>
+                {{end}}
+            </select>
         </div>
-        <div class="form-check form-check-inline">
-            <input class="form-check-input" id="filter-sort-desc" name="sortMode" value="desc" type="radio" {{if eq .filter.SortMode "desc"}} checked {{end}}>
-            <label class="form-check-label" for="filter-sort-desc">Descending</label>
-        </div>
-    </div>
 
-    <div class="d-grid gap-2">
-        <button class="btn btn-primary" type="submit">Filter</button>
-    </div>
-</form>
-<hr>
-<a class="btn btn-primary" href="/images/new">New Image</a>
-<hr>
-<table class="table table-striped table-hover table-bordered table-sm table-clickable">
-    <thead>
-    <tr>
-        <th>ID</th>
-        <th>Name</th>
-        <th>Title</th>
-        <th>Categories</th>
-        <th>NSFW</th>
-        <th>Sort Index</th>
-    </tr>
-    </thead>
-    <tbody class="table-group-divider">
-    {{ range .images }}
-        <tr class="align-middle" data-target="/images/{{.ID}}">
-            <td class="d-grid gap-2"><a class="btn btn-primary" href="/images/{{.ID}}">{{.ID}}</a></td>
-            <td>{{.Name}}</td>
-            <td>{{.Title}}</td>
-            <td>{{joinStrings .CategoryNames ", " }}</td>
-            <td>{{if .Nsfw}}Yes{{else}}No{{end}}</td>
-            <td>{{.SortIndex}}</td>
+        <div class="mb-3">
+            <label class="form-label" for="filter-category">Category</label>
+            <select class="form-select" id="filter-category" name="category">
+                <option value="">Any</option>
+                {{ range .categories}}
+                    <option value="{{.ID}}" {{if eq .ID $.filter.Category}} selected {{end}}>{{.DisplayName}}</option>
+                {{end}}
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="filter-nsfw">NSFW</label>
+            <select class="form-select" id="filter-nsfw" name="nsfw">
+                <option value="" {{if isNull .filter.Nsfw}} selected {{end}}>Any</option>
+                <option value="1" {{if notNullAndTrue .filter.Nsfw}} selected {{end}}>Yes</option>
+                <option value="0" {{if notNullAndFalse .filter.Nsfw}} selected {{end}}>No</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="filter-sort-by">Sort by</label>
+            <select class="form-select" id="filter-sort-by" name="sortBy">
+                <option value="sortIndex" {{if eq .filter.SortBy "sortIndex"}} selected {{end}}>Sort Index</option>
+                <option value="id" {{if eq .filter.SortBy "id"}} selected {{end}}>ID</option>
+                <option value="name" {{if eq .filter.SortBy "name"}} selected {{end}}>Name</option>
+                <option value="title" {{if eq .filter.SortBy "title"}} selected {{end}}>Title</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" id="filter-sort-asc" name="sortMode" value="asc" type="radio" {{if eq .filter.SortMode "asc"}} checked {{end}}>
+                <label class="form-check-label" for="filter-sort-asc">Ascending</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" id="filter-sort-desc" name="sortMode" value="desc" type="radio" {{if eq .filter.SortMode "desc"}} checked {{end}}>
+                <label class="form-check-label" for="filter-sort-desc">Descending</label>
+            </div>
+        </div>
+
+        <div class="d-grid gap-2">
+            <button class="btn btn-primary" type="submit">Filter</button>
+        </div>
+    </form>
+    <hr>
+    <a class="btn btn-primary" href="/images/new">New Image</a>
+    <hr>
+    <table class="table table-striped table-hover table-bordered table-sm table-clickable">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Title</th>
+            <th>Categories</th>
+            <th>NSFW</th>
+            <th>Sort Index</th>
         </tr>
-    {{ end }}
-    </tbody>
-</table>
+        </thead>
+        <tbody class="table-group-divider">
+        {{ range .images }}
+            <tr class="align-middle" data-target="/images/{{.ID}}">
+                <td class="d-grid gap-2"><a class="btn btn-primary" href="/images/{{.ID}}">{{.ID}}</a></td>
+                <td>{{.Name}}</td>
+                <td>{{.Title}}</td>
+                <td>{{joinStrings .CategoryNames ", " }}</td>
+                <td>{{if .Nsfw}}Yes{{else}}No{{end}}</td>
+                <td>{{.SortIndex}}</td>
+            </tr>
+        {{ end }}
+        </tbody>
+    </table>
+</div>
 {{template "footer.gohtml"}}

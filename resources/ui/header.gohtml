@@ -1,4 +1,9 @@
 {{ define "header.gohtml" }}
+    {{ $colSettings := . }}
+    {{ if not $colSettings }}
+        {{ $colSettings = "col-xl-8 col-lg-10 col-md-12"}}
+    {{end}}
+
     <!DOCTYPE html>
     <html lang="en" data-bs-theme="dark">
     <head>
@@ -92,6 +97,6 @@
             </div>
         </div>
     </nav>
-        <div id="content" class="container my-2">
+        <div id="content" class="container-fluid {{ $colSettings }} my-2">
 
 {{end}}
