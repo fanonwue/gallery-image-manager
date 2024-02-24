@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"unicode"
+	"unicode/utf8"
 )
 
 func CopyDirectory(scrDir, dest string) error {
@@ -113,4 +115,35 @@ func CopySymLink(source, dest string) error {
 		return err
 	}
 	return os.Symlink(link, dest)
+}
+
+func CompareCaseInsensitive(sa, sb string) int {
+	for {
+		rb, nb := utf8.DecodeRuneInString(sb)
+		if nb == 0 {
+			// The number of runes in sa is greater than or
+			// equal to the number of runes in sb. It follows
+			// that sa is not less than sb.
+			return -1
+		}
+
+		ra, na := utf8.DecodeRuneInString(sa)
+		if na == 0 {
+			// The number of runes in sa is less than the
+			// number of runes in sb. It follows that sa
+			// is less than sb.
+			return 1
+		}
+
+		rb = unicode.ToLower(rb)
+		ra = unicode.ToLower(ra)
+
+		if ra != rb {
+			return int(ra - rb)
+		}
+
+		// Trim rune from the beginning of each string.
+		sa = sa[na:]
+		sb = sb[nb:]
+	}
 }

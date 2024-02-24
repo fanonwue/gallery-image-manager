@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"gallery-image-manager/util"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -178,7 +179,13 @@ func updateAuthorForm(c *gin.Context) {
 
 func getAllAuthors() []AuthorDto {
 	var authors []Author
-	db.Order("Name ASC").Find(&authors)
+	db.Find(&authors)
+
+	// Case Insensitive sorting in SQLite is vendor specific (using "COLLATE NOCSAE"), so to keep it independent,
+	// just sort the list of authors after it's retrieved
+	slices.SortFunc(authors, func(a, b Author) int {
+		return util.CompareCaseInsensitive(a.Name, b.Name)
+	})
 
 	authorsDto := Map(authors, func(a Author) AuthorDto {
 		return a.toDto()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"gallery-image-manager/util"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -243,7 +244,19 @@ func updateCategoryForm(c *gin.Context) {
 
 func getAllCategories() []CategoryDto {
 	var categories []Category
-	db.Order("Show DESC").Order("Name ASC").Find(&categories)
+	db.Find(&categories)
+
+	// Case Insensitive sorting in SQLite is vendor specific (using "COLLATE NOCSAE"), so to keep it independent,
+	// just sort the list of categories after it's retrieved
+	slices.SortFunc(categories, func(a, b Category) int {
+		if a.Show && !b.Show {
+			return -1
+		}
+		if b.Show && !a.Show {
+			return 1
+		}
+		return util.CompareCaseInsensitive(a.Name, b.Name)
+	})
 
 	categoriesDto := Map(categories, func(a Category) CategoryDto {
 		return a.toDto()
