@@ -430,7 +430,7 @@ func getImagesHtml(c *gin.Context) {
 	})
 }
 
-func loadImage(c *gin.Context) (*Image, error) {
+func loadImageSession(c *gin.Context, tx *gorm.DB) (*Image, error) {
 	id, err := pathIdToInt(imageIdName, c)
 	if err != nil {
 		idValue := c.Param(imageIdName)
@@ -442,7 +442,7 @@ func loadImage(c *gin.Context) (*Image, error) {
 	}
 
 	var image Image
-	result := db.Preload(clause.Associations).First(&image, id)
+	result := tx.Preload(clause.Associations).First(&image, id)
 
 	if result.RowsAffected == 0 {
 		c.Error(result.Error)
@@ -451,6 +451,10 @@ func loadImage(c *gin.Context) (*Image, error) {
 	}
 
 	return &image, nil
+}
+
+func loadImage(c *gin.Context) (*Image, error) {
+	return loadImageSession(c, db.Session(&gorm.Session{}))
 }
 
 func getImageHtml(c *gin.Context) {
@@ -525,70 +529,84 @@ func updateImageForm(c *gin.Context) {
 			newRelatedImages = append(newRelatedImages, &newRelated)
 		}
 
+		authorChanged := image.AuthorID != dto.AuthorID
+
 		image.updateWithDto(dto)
 
-		tx := db.Session(&gorm.Session{})
-		res := tx.Save(&image)
-		if res.Error != nil {
-			c.Error(res.Error)
-			c.String(500, "Error updating image: %v", res.Error)
-			tx.Rollback()
-			return
-		}
-		if newCategories != nil {
-			err = tx.Model(&image).Association("Categories").Replace(&newCategories)
-			if err != nil {
-				c.Error(err)
-				c.String(500, "Error updating category associations: %v", err)
+		db.Transaction(func(tx *gorm.DB) error {
+			res := tx.Save(&image)
+			if res.Error != nil {
+				c.Error(res.Error)
+				c.String(500, "Error updating image: %v", res.Error)
 				tx.Rollback()
-				return
+				return res.Error
 			}
-		}
-		if newRelatedImages != nil {
-			// Delete old relations to this image
-			if image.Related != nil && len(image.Related) > 0 {
-				err = tx.Model(&newRelatedImages).Association("Related").Delete(&image)
+			if newCategories != nil {
+				err = tx.Model(&image).Association("Categories").Replace(&newCategories)
 				if err != nil {
 					c.Error(err)
-					c.String(500, "Error deleting old related images associations: %v", err)
+					c.String(500, "Error updating category associations: %v", err)
 					tx.Rollback()
-					return
+					return err
+				}
+			}
+			if newRelatedImages != nil {
+				// Delete old relations to this image
+				if image.Related != nil && len(image.Related) > 0 {
+					err = tx.Model(&newRelatedImages).Association("Related").Delete(&image)
+					if err != nil {
+						c.Error(err)
+						c.String(500, "Error deleting old related images associations: %v", err)
+						tx.Rollback()
+						return err
+					}
+				}
+
+				err = tx.Model(&image).Association("Related").Clear()
+				if err != nil {
+					c.Error(err)
+					c.String(500, "Error clearing image relations: %v", err)
+					tx.Rollback()
+					return err
+				}
+
+				for _, newRelatedImage := range newRelatedImages {
+					res = tx.Exec("INSERT INTO images_relations (image_id, related_id) VALUES (?, ?)", image.ID, newRelatedImage.ID)
+					if res.Error != nil {
+						c.Error(res.Error)
+						c.String(500, "Error adding image relation: %v", res.Error)
+						tx.Rollback()
+						return res.Error
+					}
+
+					res = tx.Exec("INSERT INTO images_relations (related_id, image_id) VALUES (?, ?)", image.ID, newRelatedImage.ID)
+					if res.Error != nil {
+						c.Error(res.Error)
+						c.String(500, "Error update related images relation: %v", res.Error)
+						tx.Rollback()
+						return res.Error
+					}
 				}
 			}
 
-			err = tx.Model(&image).Association("Related").Clear()
-			if err != nil {
-				c.Error(err)
-				c.String(500, "Error clearing image relations: %v", err)
-				tx.Rollback()
-				return
+			_, processAfterUpload := c.GetPostForm("process")
+
+			if authorChanged {
+				err := removeVariants(image.ID, tx, c)
+				if err != nil {
+					c.Error(err)
+					c.String(500, "Error deleting old variants for image: %v", err)
+					return err
+				}
+				processAfterUpload = true
 			}
 
-			for _, newRelatedImage := range newRelatedImages {
-				res = tx.Exec("INSERT INTO images_relations (image_id, related_id) VALUES (?, ?)", image.ID, newRelatedImage.ID)
-				if res.Error != nil {
-					c.Error(res.Error)
-					c.String(500, "Error adding image relation: %v", res.Error)
-					tx.Rollback()
-					return
-				}
-
-				res = tx.Exec("INSERT INTO images_relations (related_id, image_id) VALUES (?, ?)", image.ID, newRelatedImage.ID)
-				if res.Error != nil {
-					c.Error(res.Error)
-					c.String(500, "Error update related images relation: %v", res.Error)
-					tx.Rollback()
-					return
-				}
+			if processAfterUpload {
+				processImageForm(c, tx)
 			}
-		}
 
-		_, processAfterUpload := c.GetPostForm("process")
-		if processAfterUpload {
-			processImageForm(c, tx)
-		}
-
-		tx.Commit()
+			return nil
+		})
 
 		if isNewImage {
 			c.Redirect(302, fmt.Sprintf("/images/%d", image.ID))
@@ -614,6 +632,20 @@ func updateImageForm(c *gin.Context) {
 		})
 		c.Redirect(302, "/images")
 	}
+}
+
+func removeVariants(imageId uint, tx *gorm.DB, c *gin.Context) error {
+	var variants []ImageVariant
+	db.Where(&ImageVariant{ImageID: imageId}).Find(&variants)
+
+	for _, variant := range variants {
+		err := os.Remove(path.Join(appConfig.ProcessedDir, variant.FileName))
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		tx.Unscoped().Delete(&variant)
+	}
+	return nil
 }
 
 func uploadImageForm(c *gin.Context) {
@@ -669,7 +701,7 @@ func uploadImageForm(c *gin.Context) {
 }
 
 func processImageForm(c *gin.Context, tx *gorm.DB) {
-	image, err := loadImage(c)
+	image, err := loadImageSession(c, tx)
 	if err != nil || !image.ImageExists {
 		return
 	}

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"gallery-image-manager/util"
-	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -18,7 +17,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type (
@@ -348,9 +346,9 @@ func main() {
 
 	gin.SetMode(gin.ReleaseMode)
 
-	r := gin.New()
-	r.Use(ginzap.Ginzap(logger.Desugar(), time.RFC3339, false))
-	r.Use(ginzap.RecoveryWithZap(logger.Desugar(), true))
+	r := gin.Default()
+	//r.Use(ginzap.Ginzap(logger.Desugar(), time.RFC3339, false))
+	//r.Use(ginzap.RecoveryWithZap(logger.Desugar(), true))
 	r.SetTrustedProxies(nil)
 	r.SetFuncMap(template.FuncMap{
 		"joinStrings": strings.Join,
